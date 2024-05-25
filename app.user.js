@@ -208,3 +208,4 @@ async function runScript() {
         return stations[currentStationIndex];
     }
 }
+runScript()

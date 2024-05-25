@@ -1,15 +1,15 @@
 var originalOpen = window.XMLHttpRequest.prototype.open;
-    var currentRound = 0;
-    var mode, newRound, country;
-    var radioPlayer = null;
-    var radioStations = [];
-    var playerContainer = null;
-    var switchButton = null;
-    var closeButton = null;
-    var reOpenButton = null;
-    var currentStationIndex = 0;
+var currentRound = 0;
+var mode, newRound, country;
+var radioPlayer = null;
+var radioStations = [];
+var playerContainer = null;
+var switchButton = null;
+var closeButton = null;
+var reOpenButton = null;
+var currentStationIndex = 0;
  
-    window.XMLHttpRequest.prototype.open = function(method, url) {
+window.XMLHttpRequest.prototype.open = function(method, url) {
         if (url.includes('getGooglePanoInfoPost') || url.includes('getGameInfo') || url.includes('next?gameId')) {
             var self = this;
             this.addEventListener('readystatechange', function() {
@@ -21,7 +21,7 @@ var originalOpen = window.XMLHttpRequest.prototype.open;
         return originalOpen.apply(this, arguments);
     };
  
-    function handleResponse(responseText, url) {
+function handleResponse(responseText, url) {
         try {
             var responseData = JSON.parse(responseText);
             if (url.includes('next?gameId') || url.includes('getGameInfo')) {
@@ -54,7 +54,7 @@ var originalOpen = window.XMLHttpRequest.prototype.open;
         }
     }
  
-    function getCountryCode(lat, lng) {
+function getCountryCode(lat, lng) {
         return new Promise(function(resolve, reject) {
             var apiUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
             GM_xmlhttpRequest({
@@ -78,7 +78,7 @@ var originalOpen = window.XMLHttpRequest.prototype.open;
         });
     }
  
-    function searchRadioStations(country) {
+function searchRadioStations(country) {
         var params = {
             format: "json",
             hidebroken: true,
@@ -113,7 +113,7 @@ var originalOpen = window.XMLHttpRequest.prototype.open;
         });
     }
  
-    function createRadioPlayer(data) {
+function createRadioPlayer(data) {
         if (radioPlayer) {
             removeRadioPlayer();
         }
@@ -148,7 +148,7 @@ var originalOpen = window.XMLHttpRequest.prototype.open;
         document.body.appendChild(playerContainer);
     }
  
-    function removeRadioPlayer() {
+function removeRadioPlayer() {
         radioPlayer.pause();
         radioPlayer.parentNode.removeChild(radioPlayer);
         playerContainer.parentNode.removeChild(playerContainer);
@@ -159,14 +159,14 @@ var originalOpen = window.XMLHttpRequest.prototype.open;
         }
     }
  
-    function createButton(text, onClick) {
+function createButton(text, onClick) {
         var button = document.createElement('button');
         button.textContent = text;
         button.addEventListener('click', onClick);
         return button;
     }
  
-    function autoPlayRadio() {
+function autoPlayRadio() {
         if (radioPlayer && radioStations.length > 0) {
             var maxAttempts = 5;
             var attempts = 0;
@@ -198,12 +198,12 @@ var originalOpen = window.XMLHttpRequest.prototype.open;
         }
     }
  
-    function switchStation() {
+function switchStation() {
         currentStationIndex = (currentStationIndex + 1) % radioStations.length;
         playNextStation();
     }
  
-    function playNextStation() {
+function playNextStation() {
         var station = getCurrentStation(radioStations);
         if (station) {
             radioPlayer.src = station.url_resolved;
@@ -213,12 +213,12 @@ var originalOpen = window.XMLHttpRequest.prototype.open;
         }
     }
  
-    function closeRadio() {
+function closeRadio() {
         if (radioPlayer) {
             removeRadioPlayer();
         }
     }
  
-    function getCurrentStation(stations) {
+function getCurrentStation(stations) {
         return stations[currentStationIndex];
     }

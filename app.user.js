@@ -195,17 +195,3 @@
             else{Swal.fire('Error Parsing JSON Data!', 'The input JSON data is empty.','error');}
         }else{Swal.fire('Error Parsing JSON Data!', 'The input JSON data is invaild or incorrectly formatted.','error');}
     }
-    var downloadButton=document.createElement('button');
-    downloadButton.textContent='Download StreetView'
-    downloadButton.addEventListener('click', runScript);
-    downloadButton.style.position = 'fixed';
-    downloadButton.style.right = '140px';
-    downloadButton.style.bottom = '20px';
-    downloadButton.style.borderRadius = "18px";
-    downloadButton.style.fontSize ="14px";
-    downloadButton.style.padding = "10px 20px";
-    downloadButton.style.border = "none";
-    downloadButton.style.color = "white";
-    downloadButton.style.cursor = "pointer";
-    downloadButton.style.backgroundColor = "#4CAF50";
-    document.body.appendChild(downloadButton);

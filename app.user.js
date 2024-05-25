@@ -1,6 +1,4 @@
-(function() {
-    'use strict';
-    async function runScript() {
+async function runScript() {
 
         const { value: option,dismiss: inputDismiss } = await Swal.fire({
             title: 'Input JSON Data',

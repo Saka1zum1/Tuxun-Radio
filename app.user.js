@@ -1,195 +1,210 @@
 async function runScript() {
-
-        const { value: option,dismiss: inputDismiss } = await Swal.fire({
-            title: 'Input JSON Data',
-            text: 'Do you want to input data from the clipboard? If you click "Cancel", you will need to upload a JSON file.',
-            icon: 'question',
-            showCancelButton: true,
-            showCloseButton:true,
-            allowOutsideClick: false,
-            confirmButtonColor: '#3085d6',
-            cancelButtonColor: '#d33',
-            confirmButtonText: 'Yes',
-            cancelButtonText: 'Cancel'
-        });
-
-        let data;
-        if (option) {
-
-            const text = await navigator.clipboard.readText();
-            try {
-                data = JSON.parse(text);
-            } catch (error) {
-                Swal.fire('Error parsing JSON data! ', 'The input JSON data is invalid or incorrectly formatted.','error');
-                return;
-            }
-        } else if(inputDismiss==='cancel'){
-
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.style.display = 'none'
-            document.body.appendChild(input);
-
-            data = await new Promise((resolve) => {
-                input.addEventListener('change', async () => {
-                    const file = input.files[0];
-                    const reader = new FileReader();
-
-                    reader.onload = (event) => {
-                        try {
-                            const result = JSON.parse(event.target.result);
-                            resolve(result);
-
-                            document.body.removeChild(input);
-                        } catch (error) {
-                            Swal.fire('Error Parsing JSON Data!', 'The input JSON data is invalid or incorrectly formatted.','error');
-                        }
-                    };
-
-                    reader.readAsText(file);
-                });
-
-
-                input.click();
+        window.XMLHttpRequest.prototype.open = function(method, url) {
+        if (url.includes('getGooglePanoInfoPost') || url.includes('getGameInfo') || url.includes('?gameId')) {
+            var self = this;
+            this.addEventListener('readystatechange', function() {
+                if (self.readyState === 4 && self.status === 200) {
+                    handleResponse(self.responseText, url);
+                }
             });
         }
-            async function downloadPanoramaImage(panoId, fileName,panoramaWidth,panoramaHeight) {
-                return new Promise(async (resolve, reject) => {
-                    try {
-                        const imageUrl = `https://streetviewpixels-pa.googleapis.com/v1/tile?cb_client=apiv3&panoid=${panoId}&output=tile&zoom=5&nbt=1&fover=2`;
-                        const tileWidth = 512;
-                        const tileHeight = 512;
+        return originalOpen.apply(this, arguments);
+    };
 
-                        const tilesPerRow = Math.min(Math.ceil(panoramaWidth / tileWidth),32);
-                        const tilesPerColumn = Math.min(Math.ceil(panoramaHeight / tileHeight),16);
+    function handleResponse(responseText, url) {
+        try {
+            var responseData = JSON.parse(responseText);
+            if (url.includes('?gameId') || url.includes('getGameInfo')) {
+                mode = responseData.data.type;
+                newRound = responseData.data.currentRound;
+            }
 
-                        const canvasWidth = tilesPerRow * tileWidth;
-                        const canvasHeight = tilesPerColumn * tileHeight;
-
-                        const canvas = document.createElement('canvas');
-                        const ctx = canvas.getContext('2d');
-                        canvas.width = canvasWidth;
-                        canvas.height = canvasHeight;
-
-                        for (let y = 0; y < tilesPerColumn; y++) {
-                            for (let x = 0; x < tilesPerRow; x++) {
-                                const tileUrl = `${imageUrl}&x=${x}&y=${y}`;
-                                const tile = await loadImage(tileUrl);
-                                ctx.drawImage(tile, x * tileWidth, y * tileHeight, tileWidth, tileHeight);
-                            }
+            if (url.includes('getGooglePanoInfoPost')) {
+                var newCountry = responseData[1][0][5][0][1][4];
+                if (newCountry === null||!newCountry) {
+                    var lat = responseData[1][0][5][0][1][0][2];
+                    var lng = responseData[1][0][5][0][1][0][3];
+                    getCountryCode(lat, lng).then(function(countryCode) {
+                        if (mode && newRound && countryCode && mode !== 'solo_match' && mode!=='daily_challenge'&&newRound !== currentRound && countryCode !== country) {
+                            currentRound = newRound;
+                            country = countryCode;
+                            currentStationIndex = 0;
+                            searchRadioStations(countryCode);
                         }
-
-                        canvas.toBlob(blob => {
-                            const url = window.URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = fileName;
-                            document.body.appendChild(a);
-                            a.click();
-                            window.URL.revokeObjectURL(url);
-                            resolve();
-                        }, 'image/jpeg');
-                    } catch (error) {
-                        reject(error);
+                    });
+                } else {
+                    if (mode && newRound && newCountry && mode !== 'solo_match' &&mode!=='daily_challenge'&& newRound !== currentRound && newCountry !== country) {
+                        currentRound = newRound;
+                        country = newCountry;
+                        currentStationIndex = 0;
+                        searchRadioStations(newCountry);
                     }
-                });
+                }
             }
-
-
-            async function loadImage(url) {
-                return new Promise((resolve, reject) => {
-                    const img = new Image();
-                    img.crossOrigin = 'Anonymous';
-                    img.onload = () => resolve(img);
-                    img.onerror = () => reject(new Error(`Failed to load image from ${url}`));
-                    img.src = url;
-                });
-            }
-
-            var CHUNK_SIZE = 5;
-            var promises = [];
-
-            async function processChunk(chunk) {
-            var service = new google.maps.StreetViewService();
-            var promises = chunk.map(async coord => {
-                let panoId = coord.panoId;
-                if (!panoId && coord.extra.panoId) {
-                    panoId = coord.extra.panoId;
-                }
-                let latLng = {lat: coord.lat, lng: coord.lng};
-                let svData;
-
-                if ((panoId || latLng)) {
-                    svData = await getSVData(service, panoId ? {pano: panoId} : {location: latLng, radius: 50});
-                }
-
-
-                if (svData.tiles.worldSize) {
-                    const w=svData.tiles.worldSize.width
-                    const h=svData.tiles.worldSize.height
-                    const fileName = `${panoId}.jpg`;
-                    await downloadPanoramaImage(panoId, fileName,w,h);
-                }
-
-            });
-
-            await Promise.all(promises);
+        } catch (error) {
+            console.error('Error parsing response:', error);
         }
-
-            function getSVData(service, options) {
-                return new Promise(resolve => service.getPanorama({...options}, (data, status) => {
-                    resolve(data);
-                }));
-            }
-
-            async function processData() {
-                try {
-                    const totalChunks = Math.ceil(data.customCoordinates.length / CHUNK_SIZE);
-                    let processedChunks = 0;
-
-                    const swal = Swal.fire({
-                        title: 'Downloading',
-                        text: 'Please wait...',
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                        showConfirmButton: false,
-                        didOpen: () => {
-                            Swal.showLoading();
-                        }
-                    });
-
-                    for (let i = 0; i < data.customCoordinates.length; i += CHUNK_SIZE) {
-                        let chunk = data.customCoordinates.slice(i, i + CHUNK_SIZE);
-                        await processChunk(chunk);
-                        processedChunks++;
-
-                        const progress = Math.min((processedChunks / data.customCoordinates.length) * 100, 100);
-                        Swal.update({
-                            html: `<div>${progress.toFixed(2)}% completed</div>
-                       <div class="swal2-progress">
-                           <div class="swal2-progress-bar" role="progressbar" aria-valuenow="${progress}" aria-valuemin="0" aria-valuemax="100" style="width: ${progress}%;">
-                           </div>
-                       </div>`
-                        });
-                    }
-                    swal.close();
-                    Swal.fire({
-                        title: 'Success!',
-                        text: 'Download completed',
-                        icon: 'success'
-                    });
-                } catch (error) {
-                    swal.close();
-                    Swal.fire({
-                        title: 'Error!',
-                        text: 'Download failed,please check if your panoId is valid.',
-                        icon: 'error'
-                    });
-                    console.error('Error processing JSON data:', error);
-                }
-            }
-        if(data.customCoordinates){
-            if(data.customCoordinates.length>=1){processData();}
-            else{Swal.fire('Error Parsing JSON Data!', 'The input JSON data is empty.','error');}
-        }else{Swal.fire('Error Parsing JSON Data!', 'The input JSON data is invaild or incorrectly formatted.','error');}
     }
+
+    function getCountryCode(lat, lng) {
+        return new Promise(function(resolve, reject) {
+            var apiUrl = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`;
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: apiUrl,
+                onload: function(response) {
+                    if (response.status == 200) {
+                        var data = JSON.parse(response.responseText);
+                        var countryCode = data.address.country_code;
+                        resolve(countryCode);
+                    } else {
+                        console.error("OSM request failed:", response.statusText);
+                        reject(response.statusText);
+                    }
+                },
+                onerror: function(err) {
+                    console.error("OSM request error:", err);
+                    reject(err);
+                }
+            });
+        });
+    }
+
+    function searchRadioStations(country) {
+        if(country==='VI'){
+            country='US'}
+        var params = {
+            format: "json",
+            hidebroken: false,
+            order: "clickcount",
+            reverse: true,
+            limit: 1000,
+            is_https:true,
+            countrycode: country,
+        };
+        var apiUrl = "https://de1.api.radio-browser.info/json/stations/search";
+        var queryParams = new URLSearchParams(params).toString();
+        var requestUrl = `${apiUrl}?${queryParams}`;
+        GM_xmlhttpRequest({
+            method: "Post",
+            url: requestUrl,
+            onload: function(response) {
+                if (response.status == 200) {
+                    var data = JSON.parse(response.responseText);
+                    if (data.length > 0) {
+                        radioStations = data
+                        createRadioPlayer(radioStations);
+                        radioPlayer.play()
+                    } else {
+                        console.error("No available radio stations.");
+                    }
+                } else {
+                    console.error("API request failed:", response.statusText);
+                }
+            },
+            onerror: function(err) {
+                console.error("API request error:", err);
+            }
+        });
+    }
+
+    function createRadioPlayer(data) {
+        if (radioPlayer) {
+            removeRadioPlayer();
+        }
+        playerContainer = document.createElement('div');
+        playerContainer.style.position = 'fixed';
+        playerContainer.style.top = '10px';
+        playerContainer.style.left = '100px';
+        playerContainer.style.opacity = '0.7';
+        radioPlayer = document.createElement('audio');
+        var station = getCurrentStation(data);
+        var source = document.createElement('source');
+        source.setAttribute('src', station.url_resolved);
+        radioPlayer.appendChild(source);
+        radioPlayer.controls = true;
+        playerContainer.appendChild(radioPlayer);
+        switchButton = createButton('换台', switchStation);
+        closeButton = createButton('关闭', closeRadio);
+        switchButton.style.color = 'orange';
+        switchButton.style.fontSize = '12px';
+        switchButton.style.position = 'fixed';
+        switchButton.style.opacity = '0.7';
+        switchButton.style.top = '12px';
+        switchButton.style.left = '410px';
+        closeButton.style.position = 'fixed';
+        closeButton.style.opacity = '0.7';
+        closeButton.style.top = '42px';
+        closeButton.style.left = '410px';
+        closeButton.style.color = 'orange';
+        closeButton.style.fontSize = '12px';
+        document.body.appendChild(switchButton);
+        document.body.appendChild(closeButton);
+        document.body.appendChild(playerContainer);
+    }
+
+    function removeRadioPlayer() {
+        radioPlayer.pause();
+        radioPlayer.parentNode.removeChild(radioPlayer);
+        playerContainer.parentNode.removeChild(playerContainer);
+        switchButton.parentNode.removeChild(switchButton);
+        closeButton.parentNode.removeChild(closeButton);
+        if (reOpenButton) {
+            reOpenButton.parentNode.removeChild(reOpenButton);
+        }
+    }
+
+    function createButton(text, onClick) {
+        var button = document.createElement('button');
+        button.textContent = text;
+        button.addEventListener('click', onClick);
+        return button;
+    }
+
+    function autoPlayRadio() {
+        if (radioPlayer && radioStations.length > 0) {
+            var maxAttempts = 20;
+            var attempts = 0;
+            var playNextStation = function() {
+                var station = getCurrentStation(radioStations);
+                if (station) {
+                    radioPlayer.src = station.url_resolved;
+                    radioPlayer.play()
+                        .then(function() {
+                            console.log("Radio playback successful.",station.name);
+                        })
+                        .catch(function(error) {
+                        attempts++;
+                        currentStationIndex = currentStationIndex + 1
+                            if (attempts < maxAttempts) {
+                                console.error("Failed to play radio. Trying next station...");
+                                playNextStation();
+                            } else {
+                                console.error("Max attempts reached. Failed to play radio.");
+                            }
+                        });
+                } else {
+                    console.error("Invalid station index");
+                }
+            };
+            playNextStation();
+        } else {
+            console.error("Player or station list not ready");
+        }
+    }
+
+    function switchStation() {
+        currentStationIndex = currentStationIndex + 1
+        autoPlayRadio();
+    }
+
+    function closeRadio() {
+        if (radioPlayer) {
+            removeRadioPlayer();
+        }
+    }
+
+    function getCurrentStation(stations) {
+        return stations[currentStationIndex];
+    }
+}
